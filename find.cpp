@@ -1,4 +1,5 @@
 #include "find.h"
+#include <cmath>
 
 
 Find::Find(string sample, string source)
@@ -11,10 +12,14 @@ Find::Find(string sample, string source)
 void Find::PrintResult(string fileName)
 {
     ofstream result (fileName);
+    result<<"information:_____________________________________"<<endl;
+    result<<"\nsearch string \" "<<sample<<" \"";
+    result<<" \nnumber of symbols - "<<source.length();
+    result<<"\nnumber of comparisons - "<<numberOfComparisons<<endl;
     result<<"adresses: ";
     for (auto v : adresses)
         result << v << " ";
-    result<<endl;
+    result<<"\n_________________________________________________"<<endl<<endl;
 
     if(!adresses.empty())
     {
@@ -42,33 +47,44 @@ void Find::PrintResult(string fileName)
             }
         }
     }
+    else
+        result<<"\""<< sample <<"\" not Found"<<endl;
     result.close();
 }
 
-void Native::GetAdresses()
+void Naive::GetAdresses()
 {
     for(unsigned int i = 0; i < source.length(); ++i)
     {
-        if(sample == source.substr(i,sample.length()))
+        for(int k = 0; k < sample.length(); ++k)
         {
-            adresses.push_back(i);
+            numberOfComparisons++;
+            if(sample[k] != source[k + i])break;
+            if(k == sample.length() - 1)
+            {
+                 adresses.push_back(i);
+            }
         }
     }
 }
 
 
 
-int HashFind::h(string source)
+int RKFind::h(string source)
 {
+    int revers_i = source.length() - 1;
     int PrimeNumber = 23;
     int result = 0;
     for(unsigned int i = 0; i < source.length(); ++ i)
-        result += source[i];
+    {
+        result += source[i] * pow(SymbolNumbers,revers_i);
+        revers_i--;
+    }
     result %= PrimeNumber;
     return result;
 }
 
-void HashFind::GetAdresses()
+void RKFind::GetAdresses()
 {
     int length = sample.length();
     int HashText = h(sample);
@@ -77,12 +93,21 @@ void HashFind::GetAdresses()
 
     while(true)
     {
-        if((HashText == HashSource) && (sample == source.substr(position,length)))
+        numberOfComparisons++;
+        if(HashText == HashSource)
         {
-            adresses.push_back(position);
+            for(int k = 0; k < sample.length(); ++k)
+            {
+                numberOfComparisons++;
+                if(sample[k] != source[k + position])break;
+                if(k == sample.length() - 1)
+                {
+                     adresses.push_back(position);
+                }
+            }
         }
         position++;
-        if(position == source.length() - length) break;
+        if(position == source.length() - length + 1) break;
         HashSource = h(source.substr(position,length));
     }
 }
@@ -98,7 +123,9 @@ void KMPFind::KMPArrGenerate()
     for(unsigned int i = 1; i <= sample.length(); ++i)
     {
         while((b > -1) && (sample[b] != sample[i - 1]))
+        {
             b = KMPArr[b];
+        }
         ++b;
         if(i == sample.length() || sample[i] != sample[b])
             KMPArr[i] = b;
@@ -114,9 +141,12 @@ void KMPFind::GetAdresses()
 
     for(unsigned int i = 0; i < source.length(); ++i)
     {
+        if((b == -1) || (sample[b] == source[i]))
+            numberOfComparisons++;
         while((b > -1) && (sample[b] != source[i]))
         {
             b = KMPArr[b];
+            numberOfComparisons++;
         }
         b++;
         if(b == sample.length())
@@ -166,7 +196,6 @@ void BMFind::GetAdresses()
 {
     int asciiRangeMin = 32; // space
     int asciiRangeMax = 126; // ~
-    //int position = 0;
 
     int Last[asciiRangeMax - asciiRangeMin + 1];
     for(int i = 0; i <= asciiRangeMax - asciiRangeMin; ++i)
@@ -178,8 +207,17 @@ void BMFind::GetAdresses()
     while(i <= source.length() - sample.length())
     {
         int j = sample.length() - 1;
+
+        if((j == -1 ) || (sample[j] != source[i + j]))
+            numberOfComparisons++;
+
+
         while((j > -1 ) && (sample[j] == source[i + j]))
+        {
+            numberOfComparisons++;
             j--;
+        }
+
         if(j == -1)
         {
             adresses.push_back(i);
@@ -187,6 +225,72 @@ void BMFind::GetAdresses()
         }
         else
             i += max(BMArr[j + 1], j - Last[source[i+j] - asciiRangeMin]);
+    }
+}
+
+void Sunday::posGenerate()
+{
+    SymbolNumbers = alph.length();
+    pos = new int*[2];
+    for(int i = 0; i < 2; ++i)
+    {
+        pos[i] = new int[SymbolNumbers];
+    }
+    for(int i = 0; i < SymbolNumbers; ++i)
+    {
+        pos[0][i] = (int)alph[i];
+    }
+
+    for(int i = 0; i < SymbolNumbers; ++i)
+    {
+        int j = sample.length();
+        while(pos[0][i] != (int)sample[j])
+        {
+            j--;
+            if(j == -1)
+            {
+                break;
+            }
+        }
+        if(j >= 0)
+            pos[1][i] = sample.length() - j;
+        else
+            pos[1][i] = sample.length() + 1;
+    }
+}
+
+
+void Sunday::GetAdresses()
+{
+    int startAdresses = 0;
+    while(startAdresses < source.length())
+    {
+        int si = 0;
+        for(int i = startAdresses; i < sample.length() + startAdresses; ++i)
+        {
+            numberOfComparisons++;
+            if(source[i] != sample[si]) break;
+            si++;
+        }
+
+        if(si == sample.length())
+            adresses.push_back(startAdresses);
+
+        int next = 0;
+        if(startAdresses + sample.length() < source.length())
+        {
+            for(int i = 0; i < SymbolNumbers; ++i)
+            {
+                if(source[startAdresses + sample.length()] == (char)pos[0][i])
+                {
+                    next = pos[1][i];
+                    break;
+                }
+            }
+            startAdresses += next;
+        }
+        else
+            break;
     }
 }
 
